@@ -42,8 +42,8 @@ public class ModelGun extends ModelBase
 	public ModelRendererTurbo[] althammerModel = new ModelRendererTurbo[0];
 	/** The point about which the minigun barrel rotates. Rotation is along the line of the gun through this point */
 	public Vector3f minigunBarrelOrigin = new Vector3f();
-	public Vector3f minigunBarrelRotationSpeed = new Vector3f(1F, 0F, 0F);
-	public float minigunBarrelRotationSpeed = 1F;
+	public Vector3f minigunBarrelSpinDirection = new Vector3f(1F, 0F, 0F);
+	public float minigunBarrelSpinSpeed = 1F;
 
 	//These designate the locations of 3D attachment models on the gun
 	public Vector3f barrelAttachPoint = new Vector3f();
