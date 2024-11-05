@@ -43,9 +43,7 @@ import org.lwjgl.input.Mouse;
 import java.io.File;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
-import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Objects;
 
 @SuppressWarnings("WeakerAccess")
@@ -58,11 +56,6 @@ public class ClientProxy extends CommonProxy {
     public static RenderPlane planeRenderer;
     public static RenderVehicle vehicleRenderer;
     public static RenderMecha mechaRenderer;
-
-    /**
-     * The file locations of the content packs, used for loading
-     */
-    public List<File> contentPacks;
 
     @Override
     public void load() {
@@ -101,42 +94,6 @@ public class ClientProxy extends CommonProxy {
         Minecraft.getMinecraft().refreshResources();
     }
 
-    /**
-     * This method grabs all the content packs and puts them in a list. The client side part registers them as FMLModContainers which adds their resources to the game after a refresh
-     */
-    @Override
-    public List<File> getContentList(Method method, ClassLoader classloader) {
-        contentPacks = new ArrayList<>();
-        File[] files = FlansMod.flanDir.listFiles();
-        if (files != null) {
-            for (File file : files) {
-                if (file.isDirectory() || ContentManager.zipJar.matcher(file.getName()).matches()) {
-                    try {
-                        method.invoke(classloader, file.toURI().toURL());
-
-                        HashMap<String, Object> map = new HashMap<>();
-                        map.put("modid", "FlansMod");
-                        map.put("name", "Flan's Mod : " + file.getName());
-                        map.put("version", "1");
-                        FMLModContainer container = new FMLModContainer("com.flansmod.common.FlansMod", new ModCandidate(file, file, file.isDirectory() ? ContainerType.DIR : ContainerType.JAR), map);
-                        container.bindMetadata(MetadataCollection.from(null, ""));
-                        FMLClientHandler.instance().addModAsResource(container);
-
-                    } catch (Exception e) {
-                        FlansMod.log("Failed to register content pack : " + file.getName());
-                        e.printStackTrace();
-                    }
-                    // Add the directory to the content pack list
-                    FlansMod.log("Loaded content pack: " + file.getName());
-                    contentPacks.add(file);
-                }
-            }
-        }
-
-        FlansMod.log("Loaded textures and models.");
-        return contentPacks;
-    }
-
     @Override
     public void loadFlanAssets() {
         ClassLoader classloader = (net.minecraft.server.MinecraftServer.class).getClassLoader();
@@ -150,7 +107,7 @@ public class ClientProxy extends CommonProxy {
         }
 
         for (File file : Objects.requireNonNull(FlansMod.flanDir.listFiles())) {
-            if (file.isDirectory() || ContentManager.zipJar.matcher(file.getName()).matches()) {
+            if (file.isDirectory() || ContentManager.ZIP_JAR.matcher(file.getName()).matches()) {
                 try {
                     method.invoke(classloader, file.toURI().toURL());
 
@@ -163,10 +120,10 @@ public class ClientProxy extends CommonProxy {
                     FMLClientHandler.instance().addModAsResource(container);
 
                 } catch (Exception e) {
-                    FlansMod.logger.error("Failed to load images for content pack : " + file.getName(), e);
+                    FlansMod.logger.error("Failed to load images for content pack : {}", file.getName(), e);
                 }
                 // Add the directory to the content pack list
-                FlansMod.logger.info("Loaded content pack : " + file.getName());
+                FlansMod.logger.info("Loaded content pack : {}", file.getName());
             }
         }
     }
@@ -453,200 +410,136 @@ public class ClientProxy extends CommonProxy {
         try {
             doSpawnParticle(s, x, y, z, mx, my, mz, scale);
         } catch (Throwable throwable) {
-            throwable.printStackTrace();
+            FlansMod.logger.error(throwable);
         }
     }
 
     private static EntityFX doSpawnParticle(String particleType, double x, double y, double z, double vx, double vy, double vz, float scale) {
         Minecraft mc = Minecraft.getMinecraft();
         World theWorld = mc.theWorld;
-        if (mc.renderViewEntity != null && mc.effectRenderer != null) {
-            int i = mc.gameSettings.particleSetting;
+		//RETURN SOONER
+        if (mc.renderViewEntity == null || mc.effectRenderer == null) return null;
+        double d6 = mc.renderViewEntity.posX - x;
+        double d7 = mc.renderViewEntity.posY - y;
+        double d8 = mc.renderViewEntity.posZ - z;
+        EntityFX entityfx = null;
 
-            if (i == 1 && theWorld.rand.nextInt(3) == 0) {
-                i = 2;
-            }
-
-            double d6 = mc.renderViewEntity.posX - x;
-            double d7 = mc.renderViewEntity.posY - y;
-            double d8 = mc.renderViewEntity.posZ - z;
-            EntityFX entityfx = null;
-
-            // VANILLA PARTICLES
-            if (particleType.equals("hugeexplosion")) {
-                mc.effectRenderer.addEffect(entityfx = new EntityHugeExplodeFX(theWorld, x, y, z, vx, vy, vz));
-            } else if (particleType.equals("largeexplode")) {
-                mc.effectRenderer.addEffect(entityfx = new EntityLargeExplodeFX(mc.renderEngine, theWorld, x, y, z, vx, vy, vz));
-            } else if (particleType.equals("fireworksSpark")) {
-                mc.effectRenderer.addEffect(entityfx = new EntityFireworkSparkFX(theWorld, x, y, z, vx, vy, vz, mc.effectRenderer));
-            }
-            // END OF VANILLA PARTICLES
-
-            if (entityfx != null) {
-                return entityfx;
-            } else {
-                double d9 = 160.0D;
-
-                if (d6 * d6 + d7 * d7 + d8 * d8 > d9 * d9) {
-                    return null;
-                } else if (i > 1) {
-                    return null;
-                } else {
-                    // FLANS PARTICLES
-                    if (particleType.equals("flansmod.flare")) {
-                        entityfx = new EntityFlare(theWorld, x, y, z, vx, vy, vz);
-                    } else if (particleType.equals("flansmod.smoker")) {
-                        entityfx = new EntitySmokeGrenade(theWorld, x, y, z, vx, vy, vz);
-                    } else if (particleType.equals("flansmod.flash")) {
-                        entityfx = new EntityFlash(theWorld, x, y, z, vx, vy, vz);
-                    } else if (particleType.equals("flansmod.smokeburst")) {
-                        entityfx = new EntitySmokeBurst(theWorld, x, y, z, vx, vy, vz);
-                    } else if (particleType.equals("flansmod.bigsmoke")) {
-                        entityfx = new EntityBigSmoke(theWorld, x, y, z, vx, vy, vz);
-                    } else if (particleType.equals("flansmod.debris1")) {
-                        entityfx = new EntityDebris1(theWorld, x, y, z, vx, vy, vz);
-                    } else if (particleType.equals("flansmod.fmflame")) {
-                        entityfx = new EntityFMFlame(theWorld, x, y, z, vx, vy, vz);
-                    } else if (particleType.equals("flansmod.fmtracer")) {
-                        entityfx = new EntityFMTracer(theWorld, x, y, z, vx, vy, vz);
-                    } else if (particleType.equals("flansmod.fmtracergreen")) {
-                        entityfx = new EntityFMTracerGreen(theWorld, x, y, z, vx, vy, vz);
-                    } else if (particleType.equals("flansmod.fmtracerred")) {
-                        entityfx = new EntityFMTracerRed(theWorld, x, y, z, vx, vy, vz);
-                    } else if (particleType.equals("flansmod.muzzleflash")) {
-                        entityfx = new EntityFMMuzzleFlash(theWorld, x, y, z, vx, vy, vz);
-                        entityfx.multipleParticleScaleBy(scale);
-                    } else if (particleType.equals("flansmod.afterburn")) {
-                        entityfx = new EntityAfterburn(theWorld, x, y, z, vx, vy, vz);
-                    } else if (particleType.equals("flansmod.fmsmoke")) {
-                        entityfx = new EntityFMSmoke(theWorld, x, y, z, vx, vy, vz);
-                    } else if (particleType.equals("flansmod.rocketexhaust")) {
-                        entityfx = new EntityRocketexhaust(theWorld, x, y, z, vx, vy, vz);
-                    }
-
-                    // END OF CUSTOM FLANS PARTICLES
-
-
-                    // VANILLA PARTICLES
-                    if (particleType.equals("bubble")) {
-                        entityfx = new EntityBubbleFX(theWorld, x, y, z, vx, vy, vz);
-                    } else if (particleType.equals("suspended")) {
-                        entityfx = new EntitySuspendFX(theWorld, x, y, z, vx, vy, vz);
-                    } else if (particleType.equals("depthsuspend")) {
-                        entityfx = new EntityAuraFX(theWorld, x, y, z, vx, vy, vz);
-                    } else if (particleType.equals("townaura")) {
-                        entityfx = new EntityAuraFX(theWorld, x, y, z, vx, vy, vz);
-                    } else if (particleType.equals("crit")) {
-                        entityfx = new EntityCritFX(theWorld, x, y, z, vx, vy, vz);
-                    } else if (particleType.equals("magicCrit")) {
-                        entityfx = new EntityCritFX(theWorld, x, y, z, vx, vy, vz);
-                        entityfx.setRBGColorF(entityfx.getRedColorF() * 0.3F, entityfx.getGreenColorF() * 0.8F, entityfx.getBlueColorF());
-                        entityfx.nextTextureIndexX();
-                    } else if (particleType.equals("smoke")) {
-                        entityfx = new EntitySmokeFX(theWorld, x, y, z, vx, vy, vz);
-                    } else if (particleType.equals("mobSpell")) {
-                        entityfx = new EntitySpellParticleFX(theWorld, x, y, z, 0.0D, 0.0D, 0.0D);
-                        entityfx.setRBGColorF((float) vx, (float) vy, (float) vz);
-                    } else if (particleType.equals("mobSpellAmbient")) {
-                        entityfx = new EntitySpellParticleFX(theWorld, x, y, z, 0.0D, 0.0D, 0.0D);
-                        entityfx.setAlphaF(0.15F);
-                        entityfx.setRBGColorF((float) vx, (float) vy, (float) vz);
-                    } else if (particleType.equals("spell")) {
-                        entityfx = new EntitySpellParticleFX(theWorld, x, y, z, vx, vy, vz);
-                    } else if (particleType.equals("instantSpell")) {
-                        entityfx = new EntitySpellParticleFX(theWorld, x, y, z, vx, vy, vz);
-                        ((EntitySpellParticleFX) entityfx).setBaseSpellTextureIndex(144);
-                    } else if (particleType.equals("witchMagic")) {
-                        entityfx = new EntitySpellParticleFX(theWorld, x, y, z, vx, vy, vz);
-                        ((EntitySpellParticleFX) entityfx).setBaseSpellTextureIndex(144);
-                        float f = theWorld.rand.nextFloat() * 0.5F + 0.35F;
-                        entityfx.setRBGColorF(f, 0.0F, f);
-                    } else if (particleType.equals("note")) {
-                        entityfx = new EntityNoteFX(theWorld, x, y, z, vx, vy, vz);
-                    } else if (particleType.equals("portal")) {
-                        entityfx = new EntityPortalFX(theWorld, x, y, z, vx, vy, vz);
-                    } else if (particleType.equals("enchantmenttable")) {
-                        entityfx = new EntityEnchantmentTableParticleFX(theWorld, x, y, z, vx, vy, vz);
-                    } else if (particleType.equals("explode")) {
-                        entityfx = new EntityExplodeFX(theWorld, x, y, z, vx, vy, vz);
-                    } else if (particleType.equals("flame")) {
-                        entityfx = new EntityFlameFX(theWorld, x, y, z, vx, vy, vz);
-                    } else if (particleType.equals("lava")) {
-                        entityfx = new EntityLavaFX(theWorld, x, y, z);
-                    } else if (particleType.equals("footstep")) {
-                        entityfx = new EntityFootStepFX(mc.renderEngine, theWorld, x, y, z);
-                    } else if (particleType.equals("splash")) {
-                        entityfx = new EntitySplashFX(theWorld, x, y, z, vx, vy, vz);
-                    } else if (particleType.equals("wake")) {
-                        entityfx = new EntityFishWakeFX(theWorld, x, y, z, vx, vy, vz);
-                    } else if (particleType.equals("largesmoke")) {
-                        entityfx = new EntitySmokeFX(theWorld, x, y, z, vx, vy, vz, 2.5F);
-                    } else if (particleType.equals("cloud")) {
-                        entityfx = new EntityCloudFX(theWorld, x, y, z, vx, vy, vz);
-                    } else if (particleType.equals("reddust")) {
-                        entityfx = new EntityReddustFX(theWorld, x, y, z, (float) vx, (float) vy, (float) vz);
-                    } else if (particleType.equals("snowballpoof")) {
-                        entityfx = new EntityBreakingFX(theWorld, x, y, z, Items.snowball);
-                    } else if (particleType.equals("dripWater")) {
-                        entityfx = new EntityDropParticleFX(theWorld, x, y, z, Material.water);
-                    } else if (particleType.equals("dripLava")) {
-                        entityfx = new EntityDropParticleFX(theWorld, x, y, z, Material.lava);
-                    } else if (particleType.equals("snowshovel")) {
-                        entityfx = new EntitySnowShovelFX(theWorld, x, y, z, vx, vy, vz);
-                    } else if (particleType.equals("slime")) {
-                        entityfx = new EntityBreakingFX(theWorld, x, y, z, Items.slime_ball);
-                    } else if (particleType.equals("heart")) {
-                        entityfx = new EntityHeartFX(theWorld, x, y, z, vx, vy, vz);
-                    } else if (particleType.equals("angryVillager")) {
-                        entityfx = new EntityHeartFX(theWorld, x, y + 0.5D, z, vx, vy, vz);
-                        entityfx.setParticleTextureIndex(81);
-                        entityfx.setRBGColorF(1.0F, 1.0F, 1.0F);
-                    } else if (particleType.equals("happyVillager")) {
-                        entityfx = new EntityAuraFX(theWorld, x, y, z, vx, vy, vz);
-                        entityfx.setParticleTextureIndex(82);
-                        entityfx.setRBGColorF(1.0F, 1.0F, 1.0F);
-                    } else {
-                        int k;
-                        String[] astring;
-
-                        if (particleType.startsWith("iconcrack_")) {
-                            astring = particleType.split("_", 3);
-                            int j = Integer.parseInt(astring[1]);
-
-                            if (astring.length > 2) {
-                                k = Integer.parseInt(astring[2]);
-                                entityfx = new EntityBreakingFX(theWorld, x, y, z, vx, vy, vz, Item.getItemById(j), k);
-                            } else {
-                                entityfx = new EntityBreakingFX(theWorld, x, y, z, vx, vy, vz, Item.getItemById(j), 0);
-                            }
-                        } else {
-                            Block block;
-
-                            if (particleType.startsWith("blockcrack_")) {
-                                astring = particleType.split("_", 3);
-                                block = Block.getBlockById(Integer.parseInt(astring[1]));
-                                k = Integer.parseInt(astring[2]);
-                                entityfx = (new EntityDiggingFX(theWorld, x, y, z, vx, vy, vz, block, k)).applyRenderColor(k);
-                            } else if (particleType.startsWith("blockdust_")) {
-                                astring = particleType.split("_", 3);
-                                block = Block.getBlockById(Integer.parseInt(astring[1]));
-                                k = Integer.parseInt(astring[2]);
-                                entityfx = (new EntityBlockDustFX(theWorld, x, y, z, vx, vy, vz, block, k)).applyRenderColor(k);
-                            }
-                        }
-                    }
-
-                    if (entityfx != null) {
-                        entityfx.multipleParticleScaleBy(scale);
-                        mc.effectRenderer.addEffect(entityfx);
-                    }
-
-                    return entityfx;
+        // VANILLA PARTICLES
+        if (particleType.equals("hugeexplosion")) mc.effectRenderer.addEffect(entityfx = new EntityHugeExplodeFX(theWorld, x, y, z, vx, vy, vz));
+        else if (particleType.equals("largeexplode")) mc.effectRenderer.addEffect(entityfx = new EntityLargeExplodeFX(mc.renderEngine, theWorld, x, y, z, vx, vy, vz));
+        else if (particleType.equals("fireworksSpark")) mc.effectRenderer.addEffect(entityfx = new EntityFireworkSparkFX(theWorld, x, y, z, vx, vy, vz, mc.effectRenderer));
+		
+		int i = mc.gameSettings.particleSetting;
+		if (i == 1 && theWorld.rand.nextInt(3) == 0) i = 2;
+        if (entityfx != null) return entityfx;
+        else{
+			if (d6 * d6 + d7 * d7 + d8 * d8 > 160.0D * 160.0D || i > 1) return null;
+			else{
+                // FLANS PARTICLES
+                if (particleType.equals("flansmod.muzzleflash")) {
+                    entityfx = new EntityFMMuzzleFlash(theWorld, x, y, z, vx, vy, vz);
+                    entityfx.multipleParticleScaleBy(scale);
                 }
-            }
-        } else {
-            return null;
-        }
+                else if (particleType.equals("flansmod.flare")) 		entityfx = new EntityFlare(theWorld, x, y, z, vx, vy, vz);
+                else if (particleType.equals("flansmod.smoker")) 		entityfx = new EntitySmokeGrenade(theWorld, x, y, z, vx, vy, vz);
+                else if (particleType.equals("flansmod.fmflame")) 		entityfx = new EntityFMFlame(theWorld, x, y, z, vx, vy, vz);
+                else if (particleType.equals("flansmod.flash")) 		entityfx = new EntityFlash(theWorld, x, y, z, vx, vy, vz);
+                else if (particleType.equals("flansmod.smokeburst")) 	entityfx = new EntitySmokeBurst(theWorld, x, y, z, vx, vy, vz);
+                else if (particleType.equals("flansmod.bigsmoke")) 		entityfx = new EntityBigSmoke(theWorld, x, y, z, vx, vy, vz);
+                else if (particleType.equals("flansmod.debris1")) 		entityfx = new EntityDebris1(theWorld, x, y, z, vx, vy, vz);
+                else if (particleType.equals("flansmod.fmtracer")) 		entityfx = new EntityFMTracer(theWorld, x, y, z, vx, vy, vz);
+                else if (particleType.equals("flansmod.fmtracergreen")) entityfx = new EntityFMTracerGreen(theWorld, x, y, z, vx, vy, vz);
+                else if (particleType.equals("flansmod.fmtracerred")) 	entityfx = new EntityFMTracerRed(theWorld, x, y, z, vx, vy, vz);
+				else if (particleType.equals("flansmod.afterburn")) 	entityfx = new EntityAfterburn(theWorld, x, y, z, vx, vy, vz);
+                else if (particleType.equals("flansmod.fmsmoke")) 		entityfx = new EntityFMSmoke(theWorld, x, y, z, vx, vy, vz);
+                else if (particleType.equals("flansmod.rocketexhaust")) entityfx = new EntityRocketexhaust(theWorld, x, y, z, vx, vy, vz);
+
+                // VANILLA PARTICLES
+				else if (particleType.equals("explode")) 				entityfx = new EntityExplodeFX(theWorld, x, y, z, vx, vy, vz);
+				else if (particleType.equals("flame")) 					entityfx = new EntityFlameFX(theWorld, x, y, z, vx, vy, vz);
+				else if (particleType.equals("smoke")) 					entityfx = new EntitySmokeFX(theWorld, x, y, z, vx, vy, vz);
+				else if (particleType.equals("bubble"))					entityfx = new EntityBubbleFX(theWorld, x, y, z, vx, vy, vz);
+				else if (particleType.equals("suspended")) 				entityfx = new EntitySuspendFX(theWorld, x, y, z, vx, vy, vz);
+				else if (particleType.equals("depthsuspend")) 			entityfx = new EntityAuraFX(theWorld, x, y, z, vx, vy, vz);
+				else if (particleType.equals("townaura")) 				entityfx = new EntityAuraFX(theWorld, x, y, z, vx, vy, vz);
+				else if (particleType.equals("crit")) 					entityfx = new EntityCritFX(theWorld, x, y, z, vx, vy, vz);
+				else if (particleType.equals("note")) 					entityfx = new EntityNoteFX(theWorld, x, y, z, vx, vy, vz);
+				else if (particleType.equals("portal")) 				entityfx = new EntityPortalFX(theWorld, x, y, z, vx, vy, vz);
+				else if (particleType.equals("enchantmenttable")) 		entityfx = new EntityEnchantmentTableParticleFX(theWorld, x, y, z, vx, vy, vz);
+				else if (particleType.equals("lava")) 					entityfx = new EntityLavaFX(theWorld, x, y, z);
+				else if (particleType.equals("footstep")) 				entityfx = new EntityFootStepFX(mc.renderEngine, theWorld, x, y, z);
+				else if (particleType.equals("splash")) 				entityfx = new EntitySplashFX(theWorld, x, y, z, vx, vy, vz);
+				else if (particleType.equals("wake")) 					entityfx = new EntityFishWakeFX(theWorld, x, y, z, vx, vy, vz);
+				else if (particleType.equals("largesmoke")) 			entityfx = new EntitySmokeFX(theWorld, x, y, z, vx, vy, vz, 2.5F);
+				else if (particleType.equals("cloud")) 					entityfx = new EntityCloudFX(theWorld, x, y, z, vx, vy, vz);
+				else if (particleType.equals("reddust")) 				entityfx = new EntityReddustFX(theWorld, x, y, z, (float) vx, (float) vy, (float) vz);
+				else if (particleType.equals("snowballpoof")) 			entityfx = new EntityBreakingFX(theWorld, x, y, z, Items.snowball);
+				else if (particleType.equals("dripWater")) 				entityfx = new EntityDropParticleFX(theWorld, x, y, z, Material.water);
+				else if (particleType.equals("dripLava")) 				entityfx = new EntityDropParticleFX(theWorld, x, y, z, Material.lava);
+				else if (particleType.equals("snowshovel")) 			entityfx = new EntitySnowShovelFX(theWorld, x, y, z, vx, vy, vz);
+				else if (particleType.equals("slime")) 					entityfx = new EntityBreakingFX(theWorld, x, y, z, Items.slime_ball);
+				else if (particleType.equals("heart")) 					entityfx = new EntityHeartFX(theWorld, x, y, z, vx, vy, vz);
+				else if (particleType.equals("magicCrit")) {
+					entityfx = new EntityCritFX(theWorld, x, y, z, vx, vy, vz);
+					entityfx.setRBGColorF(entityfx.getRedColorF() * 0.3F, entityfx.getGreenColorF() * 0.8F, entityfx.getBlueColorF());
+					entityfx.nextTextureIndexX();
+                }
+				else if (particleType.equals("mobSpell")) {
+					entityfx = new EntitySpellParticleFX(theWorld, x, y, z, 0.0D, 0.0D, 0.0D);
+					entityfx.setRBGColorF((float) vx, (float) vy, (float) vz);
+				}
+				else if (particleType.equals("mobSpellAmbient")) {
+					entityfx = new EntitySpellParticleFX(theWorld, x, y, z, 0.0D, 0.0D, 0.0D);
+					entityfx.setAlphaF(0.15F);
+					entityfx.setRBGColorF((float) vx, (float) vy, (float) vz);
+				}
+				else if (particleType.equals("spell")) entityfx = new EntitySpellParticleFX(theWorld, x, y, z, vx, vy, vz);
+				else if (particleType.equals("instantSpell")) {
+					entityfx = new EntitySpellParticleFX(theWorld, x, y, z, vx, vy, vz);
+					((EntitySpellParticleFX) entityfx).setBaseSpellTextureIndex(144);
+				}
+				else if (particleType.equals("witchMagic")) {
+					entityfx = new EntitySpellParticleFX(theWorld, x, y, z, vx, vy, vz);
+					((EntitySpellParticleFX) entityfx).setBaseSpellTextureIndex(144);
+					float f = theWorld.rand.nextFloat() * 0.5F + 0.35F;
+					entityfx.setRBGColorF(f, 0.0F, f);
+				}
+				else if (particleType.equals("angryVillager")) {
+					entityfx = new EntityHeartFX(theWorld, x, y + 0.5D, z, vx, vy, vz);
+					entityfx.setParticleTextureIndex(81);
+					entityfx.setRBGColorF(1.0F, 1.0F, 1.0F);
+				}
+				else if (particleType.equals("happyVillager")) {
+					entityfx = new EntityAuraFX(theWorld, x, y, z, vx, vy, vz);
+					entityfx.setParticleTextureIndex(82);
+					entityfx.setRBGColorF(1.0F, 1.0F, 1.0F);
+				}
+				else if (particleType.startsWith("iconcrack_")) {
+					String[] astring = particleType.split("_", 3);
+					int j = Integer.parseInt(astring[1]);
+					entityfx = new EntityBreakingFX(theWorld, x, y, z, vx, vy, vz, Item.getItemById(j), (astring.length > 2) ? Integer.parseInt(astring[2]) : 0);
+				}
+				else if (particleType.startsWith("blockcrack_")) {
+					String[] astring = particleType.split("_", 3);
+					Block block = Block.getBlockById(Integer.parseInt(astring[1]));
+					int temp = Integer.parseInt(astring[2]);
+					entityfx = (new EntityDiggingFX(theWorld, x, y, z, vx, vy, vz, block, temp)).applyRenderColor(temp);
+				}
+				else if (particleType.startsWith("blockdust_")) {
+					String[] astring = particleType.split("_", 3);
+					Block block = Block.getBlockById(Integer.parseInt(astring[1]));
+					int temp = Integer.parseInt(astring[2]);
+					entityfx = (new EntityBlockDustFX(theWorld, x, y, z, vx, vy, vz, block, temp)).applyRenderColor(temp);
+				}
+					
+				if (entityfx != null) {
+					entityfx.multipleParticleScaleBy(scale);
+					mc.effectRenderer.addEffect(entityfx);
+				}
+
+				return entityfx;
+			}
+		}
     }
 
     public float getMouseSensitivity() {
