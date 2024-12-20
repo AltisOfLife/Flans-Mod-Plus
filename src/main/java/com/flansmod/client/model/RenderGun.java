@@ -464,11 +464,6 @@ public class RenderGun implements IItemRenderer {
 		{
 			//First person only effects
 			if (rtype == ItemRenderType.EQUIPPED_FIRST_PERSON) {
-				//Render arms
-				if (FlansMod.armsEnable && model.hasArms) {
-					Minecraft mc = Minecraft.getMinecraft();
-					renderFirstPersonArm(mc.thePlayer, model, animations);
-				}
 				//Apply model recoil when shooting
 				handleGunRecoil(
 						animations,
@@ -476,6 +471,12 @@ public class RenderGun implements IItemRenderer {
 						getRecoilDistance(gripAttachment, type, item),
 						getRecoilAngle(gripAttachment, type, item)
 				);
+
+				//Render arms
+				if (FlansMod.armsEnable && model.hasArms) {
+					Minecraft mc = Minecraft.getMinecraft();
+					renderFirstPersonArm(mc.thePlayer, model, animations);
+				}
 			}
 
 			//Gun Texture
