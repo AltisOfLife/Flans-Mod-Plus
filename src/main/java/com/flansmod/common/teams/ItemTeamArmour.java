@@ -28,16 +28,17 @@ import com.google.common.collect.Multimap;
 import cpw.mods.fml.common.registry.GameRegistry;
 import cpw.mods.fml.relauncher.Side;
 import cpw.mods.fml.relauncher.SideOnly;
+import net.minecraftforge.common.util.EnumHelper;
 
 public class ItemTeamArmour extends ItemArmor implements ISpecialArmor, IFlanItem {
     public ArmourType type;
     protected static final UUID[] uuid = new UUID[]{UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID()};
-    //public static ArmorMaterial armorMat = EnumHelper.addArmorMaterial("FLANSARMOR", 10, new int[]{1, 3, 2, 1}, FlansMod.armourEnchantability);
 
-
+    public static ArmorMaterial altArmorMat = EnumHelper.addArmorMaterial("FLANSARMOR", 5, new int[]{1, 3, 2, 1}, FlansMod.armourEnchantability);
 
     public ItemTeamArmour(ArmourType t) {
-        super(ArmorMaterial.CLOTH, 0, t.type);
+        super(altArmorMat, 0, t.type);
+
         type = t;
         type.item = this;
         setCreativeTab(FlansMod.tabFlanTeams);
